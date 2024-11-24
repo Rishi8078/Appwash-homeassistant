@@ -1,0 +1,11 @@
+{
+    "name": "AppWash",
+    "domains": ["sensor"],
+    "documentation": "https://github.com/REPOSITORY_OWNER/homeassistant-appwash",
+    "issue_tracker": "https://github.com/REPOSITORY_OWNER/homeassistant-appwash/issues",
+    "dependencies": [],
+    "version": "1.0.0",
+    "render_readme": true,
+    "iot_class": "cloud_polling"
+  }
+  
