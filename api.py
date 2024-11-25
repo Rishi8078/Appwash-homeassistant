@@ -75,7 +75,9 @@ class AppWashAPI:
                         "machines_status": machines_status,
                         "available_machines": available_machines,
                         "occupied_machines": occupied_machines,
-                        "total_machines": len(machines_data)
+                        "total_machines": len(machines_data),
+                        "machines_data": machines_data
+                        
                     }
                 
                 raise Exception(f"API request failed: {response_data.get('errorDescription', 'Unknown error')}")
