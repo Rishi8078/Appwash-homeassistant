@@ -1,6 +1,6 @@
-### AppWash Home Assistant Integration  
-
+# AppWash Home Assistant Integration  
 AppWash Home Assistant Integration enables seamless monitoring and control of AppWash laundry devices through the Home Assistant platform.  
+![Python versions](https://img.shields.io/pypi/pyversions/tplinkrouterc6u)
 
 ---
 
