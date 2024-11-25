@@ -18,3 +18,6 @@ This integration allows you to monitor your AppWash washing machines and dryers 
 - Washing Machine Availability
 - Dryer Availability
 - Account Balance
+
+## Example config
+![Screenshot from 2024-11-26 00-21-51](https://github.com/user-attachments/assets/22d3b94b-e36f-4112-b34d-2203a4849b10)
