@@ -1,6 +1,6 @@
 ### AppWash Home Assistant Integration  
 
-AppWash Home Assistant Integration enables seamless monitoring and control of AppWash laundry devices through the Home Assistant platform. This project bridges the gap between AppWash's proprietary system and the open-source Home Assistant ecosystem, offering users a streamlined solution for smart appliance management.  
+AppWash Home Assistant Integration enables seamless monitoring and control of AppWash laundry devices through the Home Assistant platform.  
 
 ---
 
@@ -72,7 +72,6 @@ icon_color: |
 ---
 
 ### Screenshots  
-*Add screenshots or GIFs of the integration in action here to help users visualize the features.*  
 ![Screenshot from 2024-11-26 00-23-57](https://github.com/user-attachments/assets/e7d5e131-9e05-4a11-bf4f-9dd2bb01f6b3)
 
 ---
@@ -99,5 +98,3 @@ We welcome contributions to this project! If you want to contribute:
 Special thanks to the Home Assistant community for their resources and inspiration in developing this integration.  
 
 ---
-
-Let me know if you'd like to add any visuals or links to this draft!
