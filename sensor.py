@@ -16,59 +16,57 @@ async def async_setup_entry(
     """Set up AppWash sensors based on a config entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    sensors = [
-        AppWashWashingMachineSensor(coordinator),
-        AppWashDryerSensor(coordinator),
-        AppWashBalanceSensor(coordinator),
-    ]
+    sensors = []
+    
+    # Add individual washing machine sensors
+    for machine in coordinator.data["washing_machines"]["machines_data"]:
+        sensors.append(AppWashIndividualWashingMachineSensor(
+            coordinator, 
+            machine["connectorName"]
+        ))
+    
+    # Add individual dryer sensors
+    for dryer in coordinator.data["dryers"]["dryers_data"]:
+        sensors.append(AppWashIndividualDryerSensor(
+            coordinator, 
+            dryer["connectorName"]
+        ))
+    
+    # Add balance sensor
+    sensors.append(AppWashBalanceSensor(coordinator))
 
     async_add_entities(sensors)
 
-class AppWashWashingMachineSensor(CoordinatorEntity, SensorEntity):
-    """Representation of an AppWash washing machine sensor."""
+class AppWashIndividualWashingMachineSensor(CoordinatorEntity, SensorEntity):
+    """Representation of an individual AppWash washing machine sensor."""
 
-    def __init__(self, coordinator):
+    def __init__(self, coordinator, machine_id):
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_name = "AppWash Washing Machines"
-        self._attr_unique_id = f"appwash_washing_machines"
+        self._machine_id = machine_id
+        self._attr_name = f"Washing Machine {machine_id}"
+        self._attr_unique_id = f"appwash_washing_machine_{machine_id}"
 
     @property
     def state(self):
         """Return the state of the sensor."""
-        return self.coordinator.data["washing_machines"]["available_machines"]
+        return self.coordinator.data["washing_machines"]["machines_status"].get(self._machine_id, "unknown")
 
-    @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        return {
-            ATTR_AVAILABLE: self.coordinator.data["washing_machines"]["available_machines"],
-            ATTR_OCCUPIED: self.coordinator.data["washing_machines"]["occupied_machines"],
-            ATTR_STATUS: self.coordinator.data["washing_machines"]["machines_status"]
-        }
+class AppWashIndividualDryerSensor(CoordinatorEntity, SensorEntity):
+    """Representation of an individual AppWash dryer sensor."""
 
-class AppWashDryerSensor(CoordinatorEntity, SensorEntity):
-    """Representation of an AppWash dryer sensor."""
-
-    def __init__(self, coordinator):
+    def __init__(self, coordinator, dryer_id):
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_name = "AppWash Dryers"
-        self._attr_unique_id = f"appwash_dryers"
+        self._dryer_id = dryer_id
+        self._attr_name = f"Dryer {dryer_id}"
+        self._attr_unique_id = f"appwash_dryer_{dryer_id}"
 
     @property
     def state(self):
         """Return the state of the sensor."""
-        return self.coordinator.data["dryers"]["available_dryers"]
+        return self.coordinator.data["dryers"]["dryers_status"].get(self._dryer_id, "unknown")
 
-    @property
-    def extra_state_attributes(self):
-        """Return the state attributes."""
-        return {
-            ATTR_AVAILABLE: self.coordinator.data["dryers"]["available_dryers"],
-            ATTR_OCCUPIED: self.coordinator.data["dryers"]["occupied_dryers"],
-            ATTR_STATUS: self.coordinator.data["dryers"]["dryers_status"]
-        }
 
 class AppWashBalanceSensor(CoordinatorEntity, SensorEntity):
     """Representation of an AppWash balance sensor."""
