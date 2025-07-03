@@ -1,4 +1,5 @@
 """DataUpdateCoordinator for AppWash."""
+import asyncio
 import logging
 from datetime import timedelta
 from homeassistant.core import HomeAssistant
@@ -22,12 +23,25 @@ class AppWashDataUpdateCoordinator(DataUpdateCoordinator):
         self.api = api
 
     async def _async_update_data(self):
-        """Fetch data from API."""
+        """Fetch data from API with parallel calls for improved performance."""
         try:
-            data = {}
-            data["washing_machines"] = await self.api.async_get_washing_machines()
-            data["dryers"] = await self.api.async_get_dryers()
-            data["balance"] = await self.api.async_get_balance()
-            return data
+            # Ensure we're logged in before making API calls
+            if not self.api._token:
+                await self.api.async_login()
+                
+            # Execute all API calls in parallel to reduce total update time
+            washing_task = self.api.async_get_washing_machines()
+            dryers_task = self.api.async_get_dryers()
+            balance_task = self.api.async_get_balance()
+            
+            washing_machines, dryers, balance = await asyncio.gather(
+                washing_task, dryers_task, balance_task
+            )
+            
+            return {
+                "washing_machines": washing_machines,
+                "dryers": dryers,
+                "balance": balance
+            }
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}")
