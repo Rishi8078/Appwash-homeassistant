@@ -5,6 +5,8 @@ LOCATION_ID = "1f28f58a-63f5-43a1-a649-fc6cffd3daff"
 OCCUPIED_MACHINE_ID = "a407d752-7478-4bb5-a018-3c149b47d1bc"
 FREE_MACHINE_ID = "a49744f7-56c2-494d-b324-192ec87d0ca2"
 FULFILLMENT_ID = "1125a4f3-a1c0-4aab-870a-de7c8c28dee4"
+OTHER_MACHINE_ID = "138fdb8c-1a07-40f6-b11e-31350015ef14"
+OTHER_FULFILLMENT_ID = "eb9d8ca0-8abe-4b94-a02a-3d8929d2397b"
 ORDER_ID = "b3b1a42a-673b-4c9a-88c9-8663e340d9cd"
 
 OCCUPIED_MACHINE = {
@@ -59,7 +61,37 @@ FREE_MACHINE = {
     "cyclePricePreview": {"currency": "EUR", "total": 2.0, "type": "FIX_PRICE"},
 }
 
-MACHINES_RESPONSE = {"items": [OCCUPIED_MACHINE, FREE_MACHINE]}
+# Occupied by a different user: its fulfillment id never shows up in the
+# account's own ``GET /cycles`` response.
+OTHER_OCCUPIED_MACHINE = {
+    "id": OTHER_MACHINE_ID,
+    "code": "46113",
+    "name": "46113",
+    "productGroup": "TD",
+    "location": {"id": LOCATION_ID},
+    "availability": {
+        "subjectType": "MACHINE",
+        "subjectId": OTHER_MACHINE_ID,
+        "status": "OCCUPIED",
+        "statusAtCheckedAt": "OCCUPIED",
+        "statusSince": "2026-08-28T12:25:41.558199Z",
+        "fulfillmentId": OTHER_FULFILLMENT_ID,
+        "checkedAt": "2026-08-28T13:24:14.723753417Z",
+        "checkedFrom": "2026-08-28T13:24:14.7127584Z",
+        "checkedUntil": "2026-08-28T15:24:14.7127584Z",
+        "checkedFulfillmentId": None,
+        "additionalInfo": (
+            f"MACHINE {OTHER_MACHINE_ID} is OCCUPIED from "
+            "2026-08-28T12:25:41.558199Z to 2026-08-28T14:25:41.558199Z"
+        ),
+    },
+    "additionalInfo": None,
+    "cyclePricePreview": {"currency": "EUR", "total": 2.0, "type": "FIX_PRICE"},
+}
+
+MACHINES_RESPONSE = {
+    "items": [OCCUPIED_MACHINE, FREE_MACHINE, OTHER_OCCUPIED_MACHINE]
+}
 
 ACTIVE_CYCLE = {
     "id": FULFILLMENT_ID,
@@ -141,4 +173,35 @@ USER_RESPONSE = {
         "name": "Hamburg - Borgfelder Strasse 16 | Borgfelder Strasse 16",
     },
     "type": "USER",
+}
+
+ACTIVE_ORDER_ITEM = {
+    "id": f"{ORDER_ID}$0",
+    "name": "Cycle price",
+    "orderId": ORDER_ID,
+    "orderedAt": "2026-08-28T12:39:18.623255Z",
+    "status": "BOOKED",
+    "fulfillmentStatus": "FULFILLING",
+    "productType": "FIX_CYCLE_WASHING",
+    "productKind": "CYCLE",
+    "productId": FULFILLMENT_ID,
+    "productName": "Cycle operation",
+    "productDescription": "Machine: 46084",
+    "grossTotalAmount": 3.0,
+}
+
+FINISHED_ORDER_ITEM = {
+    **ACTIVE_ORDER_ITEM,
+    "id": "c8d9dede-3d17-453e-aa2a-fdb61d442b41$0",
+    "orderId": "c8d9dede-3d17-453e-aa2a-fdb61d442b41",
+    "fulfillmentStatus": "FULFILLED",
+    "productId": "1055028c-e8b9-45d0-b946-9d9d971d8d8f",
+    "productDescription": "Machine: 46083",
+}
+
+ORDER_ITEMS_RESPONSE = {
+    "items": [FINISHED_ORDER_ITEM, ACTIVE_ORDER_ITEM],
+    "total": 2,
+    "pageNumber": 0,
+    "pageSize": 25,
 }

@@ -24,8 +24,10 @@ _LOGGER = logging.getLogger(__name__)
 class AppWashDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching AppWash data.
 
-    A single update performs one ``GET /machines`` and one ``GET /cycles``
-    request for the whole integration; entities only read the result.
+    A single update performs one ``GET /machines``, one ``GET /cycles`` and
+    one ``GET /account/wallet`` request for the whole integration; entities
+    only read the result.  ``GET /order-items`` is added only while the
+    account actually has a cycle running.
     """
 
     def __init__(
@@ -53,6 +55,13 @@ class AppWashDataUpdateCoordinator(DataUpdateCoordinator):
             machines = await self.api.async_get_machines(self.location_id)
             cycles = await self.api.async_get_cycles(self.location_id)
             wallet = await self.api.async_get_wallet()
+
+            # Billing lines only say something while a cycle of ours runs,
+            # so the extra request is skipped the rest of the time.
+            order_items = []
+
+            if any(cycle.is_active for cycle in cycles):
+                order_items = await self.api.async_get_order_items()
         except AppWashAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except AppWashRateLimitError as err:
@@ -62,4 +71,4 @@ class AppWashDataUpdateCoordinator(DataUpdateCoordinator):
         except Exception as err:  # pylint: disable=broad-except
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
-        return build_data(machines, cycles, wallet)
+        return build_data(machines, cycles, wallet, order_items)

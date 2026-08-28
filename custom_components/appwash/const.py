@@ -35,6 +35,13 @@ STATE_FREE: Final = "FREE"
 STATE_OCCUPIED: Final = "OCCUPIED"
 STATE_UNKNOWN: Final = "UNKNOWN"
 
+# Reported instead of ``OCCUPIED`` when the running cycle belongs to the
+# configured account.  Derived by the integration, not returned by the API.
+STATE_YOUR_CYCLE: Final = "YOUR_CYCLE"
+
+OWNER_YOU: Final = "you"
+OWNER_OTHER: Final = "other"
+
 # Cycle states observed on ``cycle.status``.
 CYCLE_STATE_ENABLED: Final = "ENABLED"
 
@@ -55,6 +62,11 @@ ATTR_CHECKED_UNTIL: Final = "checked_until"
 ATTR_CYCLE_PRICE: Final = "cycle_price"
 ATTR_CURRENCY: Final = "currency"
 ATTR_ADDITIONAL_INFO: Final = "additional_info"
+ATTR_IS_OWN_CYCLE: Final = "is_own_cycle"
+ATTR_OCCUPIED_BY: Final = "occupied_by"
+ATTR_ELAPSED_MINUTES: Final = "elapsed_minutes"
+ATTR_DURATION_MINUTES: Final = "cycle_duration_minutes"
+ATTR_PROGRESS: Final = "progress_percent"
 ATTR_LOCATION_ID: Final = "location_id"
 ATTR_ESTIMATED_END: Final = "estimated_end"
 ATTR_REMAINING_MINUTES: Final = "remaining_minutes"

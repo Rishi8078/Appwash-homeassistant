@@ -25,19 +25,16 @@ async def async_setup_entry(
 
     sensors: list[SensorEntity] = []
 
-    # Add individual washing machine sensors
     for machine in coordinator.data["washing_machines"]["machines_data"]:
         sensors.append(
             AppWashIndividualWashingMachineSensor(coordinator, machine.code, entry)
         )
 
-    # Add individual dryer sensors
     for machine in coordinator.data["dryers"]["dryers_data"]:
         sensors.append(
             AppWashIndividualDryerSensor(coordinator, machine.code, entry)
         )
 
-    # Add balance sensor
     sensors.append(AppWashBalanceSensor(coordinator, entry))
 
     async_add_entities(sensors)
@@ -68,6 +65,7 @@ class AppWashMachineSensor(CoordinatorEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._machine_code = machine_code
+        self._location_name = entry.data.get(CONF_LOCATION_NAME) if entry else None
 
         if entry is not None:
             self._attr_device_info = _device_info(entry)
@@ -90,13 +88,17 @@ class AppWashMachineSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def native_value(self) -> str:
-        """Return the availability state of the machine."""
+        """Return the state of the machine.
+
+        ``YOUR_CYCLE`` when the running cycle belongs to this account,
+        otherwise the availability reported by the API.
+        """
         machine = self._machine
 
         if machine is None:
             return STATE_UNKNOWN
 
-        return machine.availability_status
+        return machine.state
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -106,7 +108,10 @@ class AppWashMachineSensor(CoordinatorEntity, SensorEntity):
         if machine is None:
             return {}
 
-        return machine.as_attributes()
+        return {
+            **machine.as_attributes(),
+            "location_name": self._location_name,
+        }
 
 
 class AppWashIndividualWashingMachineSensor(AppWashMachineSensor):
@@ -161,3 +166,8 @@ class AppWashBalanceSensor(CoordinatorEntity, SensorEntity):
     def native_unit_of_measurement(self) -> str:
         """Return the unit of measurement."""
         return (self.coordinator.data or {}).get("currency") or "EUR"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the rest of the wallet."""
+        return (self.coordinator.data or {}).get("wallet") or {}

@@ -1,16 +1,15 @@
 # AppWash Home Assistant Integration  
-AppWash Home Assistant Integration enables monitoring of AppWash (Miele MOVE) laundry machines from Home Assistant.  
+Monitor AppWash (Miele MOVE) laundry machines from Home Assistant.  
 ![Python versions](https://img.shields.io/pypi/pyversions/tplinkrouterc6u)
 
 ---
 
 ### Features  
-- **Real-time Monitoring:** View the availability of washing machines and dryers.  
-- **Machine Availability:** See which machines are `FREE` and which are `OCCUPIED`.  
+- **Machine Availability:** See which washing machines and dryers are `FREE` and which are `OCCUPIED`.  
 - **Cycle Details:** The active cycle (id, order, product type, timestamps) is exposed as attributes on the machine it runs on.  
-- **Progress Updates:** `estimated_end` and `remaining_minutes` are derived from the occupancy window reported by the API.  
+- **Estimated Finish Time:** `estimated_end` and `remaining_minutes` are derived from the occupancy window reported by the API.  
 - **Wallet Balance:** Your prepaid balance as a sensor.  
-- **Simple Configuration:** Setup directly within Home Assistant.  
+- **UI Configuration:** Credentials are entered in the Home Assistant config flow; no YAML.  
 
 ---
 
@@ -21,8 +20,10 @@ with Amazon Cognito login. Version 2.0.0 follows that migration:
 
 - Entity IDs, entity names and unique IDs are **unchanged**.
 - Machine sensor states now use the values the API reports: **`FREE`** (previously
-  `AVAILABLE`) and **`OCCUPIED`**. Dashboard templates comparing against
-  `AVAILABLE` must be updated — see the example below.
+  `AVAILABLE`) and **`OCCUPIED`**, plus **`YOUR_CYCLE`** when the running cycle
+  is yours. Dashboard templates comparing against `AVAILABLE` must be updated, and
+  a template that checks for `OCCUPIED` will not match your own machine — see the
+  example below.
 - Existing config entries keep working; the location is resolved automatically
   from your account and can be overridden in the integration options.
 
@@ -78,8 +79,10 @@ primary: Washing Machine
 secondary: |
   {% if is_state('sensor.washing_machine_46084', 'FREE') %}
     Available
+  {% elif is_state('sensor.washing_machine_46084', 'YOUR_CYCLE') %}
+    Your wash ({{ state_attr('sensor.washing_machine_46084', 'remaining_minutes') }} min left)
   {% elif is_state('sensor.washing_machine_46084', 'OCCUPIED') %}
-    Occupied ({{ state_attr('sensor.washing_machine_46084', 'remaining_minutes') }} min left)
+    In use by someone else
   {% else %}
     Unknown
   {% endif %}
@@ -87,6 +90,8 @@ icon: mdi:washing-machine
 icon_color: |
   {% if is_state('sensor.washing_machine_46084', 'FREE') %}
     green
+  {% elif is_state('sensor.washing_machine_46084', 'YOUR_CYCLE') %}
+    blue
   {% elif is_state('sensor.washing_machine_46084', 'OCCUPIED') %}
     red
   {% else %}
@@ -100,22 +105,79 @@ icon_color: |
 
 | Entity | State |
 | --- | --- |
-| `sensor.washing_machine_<code>` | `FREE` / `OCCUPIED` |
-| `sensor.dryer_<code>` | `FREE` / `OCCUPIED` |
+| `sensor.washing_machine_<code>` | `FREE` / `OCCUPIED` / `YOUR_CYCLE` |
+| `sensor.dryer_<code>` | `FREE` / `OCCUPIED` / `YOUR_CYCLE` |
 | `sensor.appwash_balance` | Wallet balance in the account currency |
+
+`YOUR_CYCLE` replaces `OCCUPIED` when the cycle running on the machine belongs
+to the configured account. `availability_status` always keeps the raw API value
+(`FREE` / `OCCUPIED`), so both views are available.
 
 Machine sensors expose these attributes:
 
 `machine_code`, `machine_name`, `machine_id`, `product_group`, `location_id`,
-`availability_status`, `status_since`, `fulfillment_id`, `checked_at`,
-`checked_from`, `checked_until`, `cycle_price`, `currency`, `additional_info`,
-`estimated_end`, `remaining_minutes`
+| Attribute | Meaning |
+| --- | --- |
+| `machine_code`, `machine_name`, `machine_id` | Identity |
+| `product_group` | `WM` (washer) or `TD` (tumble dryer) |
+| `location_id`, `location_name` | Where the machine is |
+| `availability_status` | Raw API value: `FREE` / `OCCUPIED` |
+| `is_own_cycle`, `occupied_by` | Whether the occupancy is yours (`you` / `other` / `null`) |
+| `status_since` | When the current occupancy started |
+| `fulfillment_id` | Identifies the occupancy; equals your cycle id when it's yours |
+| `checked_at`, `checked_from`, `checked_until` | Freshness window of the availability data |
+| `cycle_price`, `currency`, `price_type` | Price preview for a new cycle |
+| `additional_info` | The backend's occupancy sentence |
+| `estimated_end`, `remaining_minutes` | Derived from the occupancy window |
+| `elapsed_minutes`, `cycle_duration_minutes`, `progress_percent` | Derived progress |
 
-When a cycle is running on the machine, its details are added:
+When one of *your* cycles is running on the machine, its details are added:
 
-`cycle_id`, `cycle_status`, `cycle_product_type`, `cycle_product_kind`,
-`cycle_order_id`, `cycle_termination_reason`, `cycle_created_at`,
-`cycle_ordered_at`, `cycle_enabled_at`, `cycle_stopped_at`
+| Attribute | Meaning |
+| --- | --- |
+| `cycle_id`, `cycle_status` | The cycle and its state (`ENABLED`) |
+| `cycle_product_type`, `cycle_product_kind` | e.g. `FIX_CYCLE_WASHING` / `CYCLE` |
+| `cycle_order_id`, `cycle_termination_reason` | Order link, why it ended |
+| `cycle_created_at`, `cycle_ordered_at`, `cycle_enabled_at`, `cycle_stopped_at` | Cycle timeline |
+| `cycle_fulfillment_status` | `FULFILLING` while running, `FULFILLED` once done |
+| `cycle_order_status`, `cycle_paid_amount`, `cycle_description` | What you were charged |
+
+The balance sensor carries `available_balance`, `total_balance` and
+`authorized_balance` as attributes.
+
+Notify yourself when your own wash finishes:
+
+```yaml
+automation:
+  - alias: My wash is done
+    trigger:
+      - platform: state
+        entity_id: sensor.washing_machine_46084
+        from: YOUR_CYCLE
+        to: FREE
+    action:
+      - service: notify.mobile_app
+        data:
+          message: "Machine 46084 is done."
+```
+
+---
+
+### How your own cycle is detected
+
+`GET /cycles` is scoped to the authenticated account, so it only ever returns
+your cycles. A busy machine carries `availability.fulfillmentId`, and for your
+own cycles that value equals the cycle's `id`. The integration matches the two:
+
+- exact match → the cycle is yours → state `YOUR_CYCLE`, `occupied_by: you`,
+  and the cycle's details are added as attributes
+- `fulfillmentId` set but absent from your cycles → somebody else → `OCCUPIED`,
+  `occupied_by: other`
+- no `fulfillmentId` → falls back to matching on machine id, which covers the
+  short window after a cycle is enabled while availability still reads `FREE`
+
+An unmatched `fulfillmentId` never falls back to the machine id, so a finished
+cycle of yours cannot make a stranger's wash look like your own.
 
 ---
 
@@ -129,6 +191,11 @@ GET /machines?location.id=<location>
 GET /cycles?page=0&size=20&location.id=<location>
 GET /account/wallet
 ```
+
+A fourth request, `GET /order-items?page=0&size=20&kind=CYCLE`, is added only
+while one of your cycles is actually running — it supplies
+`cycle_fulfillment_status` and the amount charged. With no wash of your own in
+progress it is skipped entirely.
 
 Order history (`/orders`) is available in the client but is not fetched during
 normal polling.
@@ -165,6 +232,7 @@ tools/                       read-only API discovery scripts, never imported
 - The API exposes no remaining-time field. `estimated_end` / `remaining_minutes` are derived from the occupancy window in `availability.additionalInfo` and are an estimate, not a live countdown.  
 - Only the machine types the API reports as `WM` (washer) and `TD` (tumble dryer) get sensors.  
 - Only the availability states `FREE` and `OCCUPIED` have been observed; any other value is passed through unchanged.  
+- Ownership is inferred from your own cycle list. The API exposes no owner field, so a machine occupied through a route that produces no cycle for your account (a reservation, for instance) reads as `OCCUPIED`.  
 - Multiple locations are not supported in a single config entry; add one entry per account and select the location in the options.  
 
 ---
@@ -174,10 +242,5 @@ tools/                       read-only API discovery scripts, never imported
 2. Create a feature branch.  
 3. Commit your changes and push the branch to your fork.  
 4. Submit a pull request.  
-
----
-
-### Acknowledgments  
-Special thanks to the Home Assistant community for their resources and inspiration in developing this integration.  
 
 ---

@@ -7,12 +7,15 @@ entities only ever deal with the small, flat objects below.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any
 
 from .const import (
     CYCLE_STATE_ENABLED,
+    OWNER_OTHER,
+    OWNER_YOU,
+    STATE_YOUR_CYCLE,
     PRODUCT_GROUP_DRYER,
     PRODUCT_GROUP_WASHER,
     STATE_FREE,
@@ -135,6 +138,53 @@ class Cycle:
 
 
 @dataclass(frozen=True)
+class OrderItem:
+    """A billed order line as returned by ``GET /order-items``.
+
+    ``productId`` is the cycle id, which is how a line is tied back to the
+    machine running it.
+    """
+
+    item_id: str
+    order_id: str | None = None
+    ordered_at: str | None = None
+    status: str | None = None
+    fulfillment_status: str | None = None
+    product_type: str | None = None
+    product_kind: str | None = None
+    product_id: str | None = None
+    product_name: str | None = None
+    product_description: str | None = None
+    gross_total_amount: float | None = None
+
+    @classmethod
+    def from_api(cls, data: dict[str, Any]) -> "OrderItem":
+        """Build an order item from an ``/order-items`` item."""
+        return cls(
+            item_id=data.get("id"),
+            order_id=data.get("orderId"),
+            ordered_at=data.get("orderedAt"),
+            status=data.get("status"),
+            fulfillment_status=data.get("fulfillmentStatus"),
+            product_type=data.get("productType"),
+            product_kind=data.get("productKind"),
+            product_id=data.get("productId"),
+            product_name=data.get("productName"),
+            product_description=data.get("productDescription"),
+            gross_total_amount=data.get("grossTotalAmount"),
+        )
+
+    def as_attributes(self) -> dict[str, Any]:
+        """Return the order line as Home Assistant state attributes."""
+        return {
+            "cycle_order_status": self.status,
+            "cycle_fulfillment_status": self.fulfillment_status,
+            "cycle_paid_amount": self.gross_total_amount,
+            "cycle_description": self.product_description,
+        }
+
+
+@dataclass(frozen=True)
 class Machine:
     """A machine as returned by ``GET /machines?location.id=...``."""
 
@@ -155,6 +205,7 @@ class Machine:
     currency: str | None = None
     price_type: str | None = None
     cycle: Cycle | None = field(default=None, compare=False)
+    order_item: OrderItem | None = field(default=None, compare=False)
 
     @classmethod
     def from_api(cls, data: dict[str, Any]) -> "Machine":
@@ -195,25 +246,14 @@ class Machine:
         if cycle is None:
             return self
 
-        return Machine(
-            machine_id=self.machine_id,
-            code=self.code,
-            name=self.name,
-            product_group=self.product_group,
-            location_id=self.location_id,
-            availability_status=self.availability_status,
-            status_at_checked_at=self.status_at_checked_at,
-            status_since=self.status_since,
-            fulfillment_id=self.fulfillment_id,
-            checked_at=self.checked_at,
-            checked_from=self.checked_from,
-            checked_until=self.checked_until,
-            additional_info=self.additional_info,
-            cycle_price=self.cycle_price,
-            currency=self.currency,
-            price_type=self.price_type,
-            cycle=cycle,
-        )
+        return replace(self, cycle=cycle)
+
+    def with_order_item(self, order_item: OrderItem | None) -> "Machine":
+        """Return a copy of this machine with the cycle's billing line."""
+        if order_item is None:
+            return self
+
+        return replace(self, order_item=order_item)
 
     @property
     def is_free(self) -> bool:
@@ -224,6 +264,36 @@ class Machine:
     def is_occupied(self) -> bool:
         """Return True when the machine is running/blocked."""
         return self.availability_status == STATE_OCCUPIED
+
+    @property
+    def is_own_cycle(self) -> bool:
+        """Return True when a cycle of this account runs on the machine.
+
+        ``GET /cycles`` only ever returns the authenticated account's own
+        cycles, so an attached cycle is by definition yours.
+        """
+        return self.cycle is not None
+
+    @property
+    def occupied_by(self) -> str | None:
+        """Return who the machine is occupied by, or None when it is free."""
+        if not self.is_occupied:
+            return None
+
+        return OWNER_YOU if self.is_own_cycle else OWNER_OTHER
+
+    @property
+    def state(self) -> str:
+        """Return the state reported to Home Assistant.
+
+        ``OCCUPIED`` is narrowed to ``YOUR_CYCLE`` when the occupancy
+        belongs to this account.  Every other availability value is passed
+        through exactly as the API reported it.
+        """
+        if self.is_occupied and self.is_own_cycle:
+            return STATE_YOUR_CYCLE
+
+        return self.availability_status
 
     @property
     def is_washing_machine(self) -> bool:
@@ -253,6 +323,43 @@ class Machine:
 
         return parse_timestamp(match.group("end"))
 
+    @property
+    def occupied_since(self) -> datetime | None:
+        """Return when the current occupancy started."""
+        return parse_timestamp(self.status_since)
+
+    @property
+    def cycle_duration_minutes(self) -> int | None:
+        """Return the length of the occupancy window in minutes."""
+        start = self.occupied_since
+        end = self.estimated_end
+
+        if start is None or end is None:
+            return None
+
+        return max(0, int(round((end - start).total_seconds() / 60)))
+
+    def elapsed_minutes(self, now: datetime | None = None) -> int | None:
+        """Return how long the current occupancy has been running."""
+        start = self.occupied_since
+
+        if start is None or not self.is_occupied:
+            return None
+
+        reference = now or datetime.now(timezone.utc)
+
+        return max(0, int(round((reference - start).total_seconds() / 60)))
+
+    def progress_percent(self, now: datetime | None = None) -> int | None:
+        """Return how far through the occupancy window the machine is."""
+        duration = self.cycle_duration_minutes
+        elapsed = self.elapsed_minutes(now)
+
+        if not duration or elapsed is None:
+            return None
+
+        return max(0, min(100, int(round(elapsed / duration * 100))))
+
     def remaining_minutes(self, now: datetime | None = None) -> int | None:
         """Return the minutes left of the current occupancy window."""
         end = self.estimated_end
@@ -276,6 +383,8 @@ class Machine:
             "product_group": self.product_group,
             "location_id": self.location_id,
             "availability_status": self.availability_status,
+            "is_own_cycle": self.is_own_cycle,
+            "occupied_by": self.occupied_by,
             "status_since": self.status_since,
             "fulfillment_id": self.fulfillment_id,
             "checked_at": self.checked_at,
@@ -283,13 +392,20 @@ class Machine:
             "checked_until": self.checked_until,
             "cycle_price": self.cycle_price,
             "currency": self.currency,
+            "price_type": self.price_type,
             "additional_info": self.additional_info,
             "estimated_end": end.isoformat() if end else None,
             "remaining_minutes": self.remaining_minutes(now),
+            "elapsed_minutes": self.elapsed_minutes(now),
+            "cycle_duration_minutes": self.cycle_duration_minutes,
+            "progress_percent": self.progress_percent(now),
         }
 
         if self.cycle is not None:
             attributes.update(self.cycle.as_attributes())
+
+        if self.order_item is not None:
+            attributes.update(self.order_item.as_attributes())
 
         return attributes
 
@@ -329,19 +445,85 @@ def active_cycles_by_machine(cycles: list[Cycle]) -> dict[str, Cycle]:
     return mapping
 
 
+def parse_order_items(payload: Any) -> list[OrderItem]:
+    """Parse a ``GET /order-items`` response."""
+    return [
+        OrderItem.from_api(item)
+        for item in _items(payload)
+        if item.get("id")
+    ]
+
+
+def order_items_by_product(order_items: list[OrderItem]) -> dict[str, OrderItem]:
+    """Map product (cycle) id -> billed order line."""
+    mapping: dict[str, OrderItem] = {}
+
+    for item in order_items:
+        if item.product_id:
+            mapping.setdefault(item.product_id, item)
+
+    return mapping
+
+
+def active_cycles_by_id(cycles: list[Cycle]) -> dict[str, Cycle]:
+    """Map cycle id -> active cycle."""
+    return {
+        cycle.cycle_id: cycle
+        for cycle in cycles
+        if cycle.is_active and cycle.cycle_id
+    }
+
+
+def attach_cycles(
+    machines: list[Machine],
+    cycles: list[Cycle],
+    order_items: list[OrderItem] | None = None,
+) -> list[Machine]:
+    """Attach this account's active cycles to the machines they run on.
+
+    A machine that is busy carries ``availability.fulfillmentId``.  For the
+    account's own cycles that value equals the cycle id, and cycles belonging
+    to other users are simply absent from ``GET /cycles`` — so an exact match
+    is what separates "your wash" from "somebody else's".
+
+    When a machine reports no fulfillment id at all (for example right after
+    a cycle was enabled, while availability still reads FREE) the machine id
+    is used instead.
+    """
+    by_id = active_cycles_by_id(cycles)
+    by_machine = active_cycles_by_machine(cycles)
+    by_product = order_items_by_product(order_items or [])
+
+    attached: list[Machine] = []
+
+    for machine in machines:
+        if machine.fulfillment_id:
+            # An unmatched fulfillment id means somebody else is using it;
+            # never fall back to the machine id in that case.
+            cycle = by_id.get(machine.fulfillment_id)
+        else:
+            cycle = by_machine.get(machine.machine_id)
+
+        machine = machine.with_cycle(cycle)
+
+        if cycle is not None:
+            machine = machine.with_order_item(by_product.get(cycle.cycle_id))
+
+        attached.append(machine)
+
+    return attached
+
+
 def build_data(
     machines: list[Machine],
     cycles: list[Cycle],
     wallet: dict[str, Any] | None = None,
+    order_items: list[OrderItem] | None = None,
 ) -> dict[str, Any]:
     """Map the API responses onto the structure used by the entities."""
     wallet = wallet or {}
     cycle_by_machine = active_cycles_by_machine(cycles)
-
-    machines = [
-        machine.with_cycle(cycle_by_machine.get(machine.machine_id))
-        for machine in machines
-    ]
+    machines = attach_cycles(machines, cycles, order_items)
 
     washers = [machine for machine in machines if machine.is_washing_machine]
     dryers = [machine for machine in machines if machine.is_dryer]
@@ -354,7 +536,7 @@ def build_data(
         "machines_by_code": {machine.code: machine for machine in machines},
         "washing_machines": {
             "machines_status": {
-                machine.code: machine.availability_status for machine in washers
+                machine.code: machine.state for machine in washers
             },
             "available_machines": _count(washers, STATE_FREE),
             "occupied_machines": _count(washers, STATE_OCCUPIED),
@@ -363,7 +545,7 @@ def build_data(
         },
         "dryers": {
             "dryers_status": {
-                machine.code: machine.availability_status for machine in dryers
+                machine.code: machine.state for machine in dryers
             },
             "available_dryers": _count(dryers, STATE_FREE),
             "occupied_dryers": _count(dryers, STATE_OCCUPIED),
@@ -372,6 +554,14 @@ def build_data(
         },
         "cycles": cycles,
         "active_cycles": cycle_by_machine,
+        "own_machines": [
+            machine for machine in machines if machine.is_own_cycle
+        ],
         "balance": float(wallet.get("balance") or 0.0),
         "currency": wallet.get("currency") or "EUR",
+        "wallet": {
+            "available_balance": wallet.get("availableBalance"),
+            "total_balance": wallet.get("totalBalance"),
+            "authorized_balance": wallet.get("authorizedBalance"),
+        },
     }

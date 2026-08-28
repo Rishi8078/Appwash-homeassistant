@@ -24,6 +24,7 @@ from fixtures import (
     MACHINES_RESPONSE,
     OCCUPIED_MACHINE_ID,
     ORDERS_RESPONSE,
+    ORDER_ITEMS_RESPONSE,
     USER_RESPONSE,
     WALLET_RESPONSE,
 )
@@ -35,6 +36,7 @@ DEFAULT_ROUTES = {
     "/machines": MACHINES_RESPONSE,
     "/cycles": CYCLES_RESPONSE,
     "/orders": ORDERS_RESPONSE,
+    "/order-items": ORDER_ITEMS_RESPONSE,
     "/user": USER_RESPONSE,
     "/account/wallet": WALLET_RESPONSE,
 }
@@ -124,7 +126,7 @@ async def test_machines_request_uses_location_query(fake_api):
 
     assert fake.paths == ["/machines"]
     assert fake.requests[0]["query"] == {"location.id": LOCATION_ID}
-    assert [machine.code for machine in machines] == ["46084", "46115"]
+    assert [machine.code for machine in machines] == ["46084", "46115", "46113"]
 
 
 async def test_cycles_request_uses_paging(fake_api):
@@ -157,6 +159,23 @@ async def test_orders_request_uses_paging(fake_api):
     assert fake.paths == ["/orders"]
     assert fake.requests[0]["query"] == {"page": "0", "size": "20"}
     assert len(orders) == 1
+
+
+async def test_order_items_request_uses_kind_and_paging(fake_api):
+    fake, api = fake_api
+
+    items = await api.async_get_order_items()
+
+    assert fake.paths == ["/order-items"]
+    assert fake.requests[0]["query"] == {
+        "page": "0",
+        "size": "20",
+        "kind": "CYCLE",
+    }
+    assert [item.fulfillment_status for item in items] == [
+        "FULFILLED",
+        "FULFILLING",
+    ]
 
 
 async def test_machine_detail_endpoint(fake_api):
@@ -330,7 +349,7 @@ async def test_credentials_are_never_logged(fake_api, caplog):
     assert "Bearer" not in text
     # Useful debug output is still produced.
     assert "GET /machines" in text
-    assert "Fetched 2 machines" in text
+    assert "Fetched 3 machines" in text
 
 
 async def test_auth_errors_do_not_contain_credentials():

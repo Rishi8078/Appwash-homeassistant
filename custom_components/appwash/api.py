@@ -30,7 +30,14 @@ from .const import (
     REQUEST_TIMEOUT,
     WEB_ORIGIN,
 )
-from .models import Cycle, Machine, parse_cycles, parse_machines
+from .models import (
+    Cycle,
+    Machine,
+    OrderItem,
+    parse_cycles,
+    parse_machines,
+    parse_order_items,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -583,6 +590,30 @@ class AppWashAPI:
         )
 
         return cycles
+
+    async def async_get_order_items(
+        self,
+        kind: str = "CYCLE",
+        page: int = 0,
+        size: int = 20,
+    ) -> list[OrderItem]:
+        """Return billed order lines (``GET /order-items``).
+
+        Cycle lines carry ``fulfillmentStatus`` and the amount actually
+        charged, keyed by ``productId`` (the cycle id).
+        """
+        params: dict[str, Any] = {"page": str(page), "size": str(size)}
+
+        if kind:
+            params["kind"] = kind
+
+        items = parse_order_items(
+            await self._async_request("/order-items", params)
+        )
+
+        _LOGGER.debug("Fetched %s order items for kind=%s", len(items), kind)
+
+        return items
 
     async def async_get_orders(
         self, page: int = 0, size: int = 20
