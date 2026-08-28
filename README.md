@@ -1,73 +1,143 @@
 # AppWash Home Assistant Integration  
-AppWash Home Assistant Integration enables seamless monitoring and control of AppWash laundry devices through the Home Assistant platform.  
+AppWash Home Assistant Integration enables monitoring of AppWash (Miele MOVE) laundry machines from Home Assistant.  
 ![Python versions](https://img.shields.io/pypi/pyversions/tplinkrouterc6u)
 
 ---
 
 ### Features  
-- **Real-time Monitoring:** View the status of washing machines and dryers in real-time.  
-- **Machine Availability:** Check which machines are free or in use.  
-- **Progress Updates:** Track the remaining time of ongoing cycles.  
-- **Simple Configuration:** Intuitive setup directly within Home Assistant.  
+- **Real-time Monitoring:** View the availability of washing machines and dryers.  
+- **Machine Availability:** See which machines are `FREE` and which are `OCCUPIED`.  
+- **Cycle Details:** The active cycle (id, order, product type, timestamps) is exposed as attributes on the machine it runs on.  
+- **Progress Updates:** `estimated_end` and `remaining_minutes` are derived from the occupancy window reported by the API.  
+- **Wallet Balance:** Your prepaid balance as a sensor.  
+- **Simple Configuration:** Setup directly within Home Assistant.  
+
+---
+
+### ⚠️ Upgrading from 1.x
+
+AppWash migrated to the Miele MOVE API (`https://www.miele-move.com/appwash/api/app/v1`)
+with Amazon Cognito login. Version 2.0.0 follows that migration:
+
+- Entity IDs, entity names and unique IDs are **unchanged**.
+- Machine sensor states now use the values the API reports: **`FREE`** (previously
+  `AVAILABLE`) and **`OCCUPIED`**. Dashboard templates comparing against
+  `AVAILABLE` must be updated — see the example below.
+- Existing config entries keep working; the location is resolved automatically
+  from your account and can be overridden in the integration options.
 
 ---
 
 ### Prerequisites  
-Before installing this integration, ensure you have the following:  
 - A working Home Assistant instance.  
-- Valid AppWash account credentials.  
-- Internet connectivity to communicate with AppWash's API.  
+- Valid AppWash account credentials (the same ones used on <https://web.appwash.com>).  
+- Internet connectivity to `www.miele-move.com` and `appwash.auth.eu-north-1.amazoncognito.com`.  
 
 ---
 
 ### Installation  
 
-Follow these steps to install and configure the AppWash Home Assistant Integration:  
-
 1. **Clone the Repository**  
-   Clone the repository to your local system:  
    ```bash  
    git clone https://github.com/Rishi8078/Appwash-homeassistant.git  
    ```  
 
 2. **Copy Files**  
-   Place the `appwash` folder in your Home Assistant's `config/custom_components/` directory.  
+   Place the integration folder as `config/custom_components/appwash/` in your Home Assistant configuration directory.  
 
 3. **Restart Home Assistant**  
-   Restart your Home Assistant instance to load the new integration.  
 
 4. **Add the Integration**  
-   In the Home Assistant UI:  
-   - Navigate to **Settings > Integrations**.  
-   - Click **Add Integration** and search for "AppWash."  
+   - Navigate to **Settings > Devices & Services**.  
+   - Click **Add Integration** and search for "AppWash".  
    - Enter your AppWash account credentials when prompted.  
 
 ---
 
 ### Configuration  
-After installation, you may configure the integration in the Home Assistant UI. If additional YAML configuration is required, follow the example below:  
+
+Credentials are entered in the config flow and stored in the config entry; nothing
+needs to be placed in YAML. The location polled by the integration is taken from
+your account's preferred location. To poll a different one, open the integration's
+**Configure** dialog and enter a location ID.
+
+Example dashboard card:
 
 ```yaml  
 type: custom:mushroom-template-card
 primary: Washing Machine
 secondary: |
-  {% if is_state('sensor.washing_machine_41297', 'AVAILABLE') %}
+  {% if is_state('sensor.washing_machine_46084', 'FREE') %}
     Available
-  {% elif is_state('sensor.washing_machine_41297', 'OCCUPIED') %}
-    Occupied
+  {% elif is_state('sensor.washing_machine_46084', 'OCCUPIED') %}
+    Occupied ({{ state_attr('sensor.washing_machine_46084', 'remaining_minutes') }} min left)
   {% else %}
     Unknown
   {% endif %}
 icon: mdi:washing-machine
 icon_color: |
-  {% if is_state('sensor.washing_machine_41297', 'AVAILABLE') %}
+  {% if is_state('sensor.washing_machine_46084', 'FREE') %}
     green
-  {% elif is_state('sensor.washing_machine_41297', 'OCCUPIED') %}
+  {% elif is_state('sensor.washing_machine_46084', 'OCCUPIED') %}
     red
   {% else %}
     grey
   {% endif %}
 ```  
+
+---
+
+### Entities and attributes
+
+| Entity | State |
+| --- | --- |
+| `sensor.washing_machine_<code>` | `FREE` / `OCCUPIED` |
+| `sensor.dryer_<code>` | `FREE` / `OCCUPIED` |
+| `sensor.appwash_balance` | Wallet balance in the account currency |
+
+Machine sensors expose these attributes:
+
+`machine_code`, `machine_name`, `machine_id`, `product_group`, `location_id`,
+`availability_status`, `status_since`, `fulfillment_id`, `checked_at`,
+`checked_from`, `checked_until`, `cycle_price`, `currency`, `additional_info`,
+`estimated_end`, `remaining_minutes`
+
+When a cycle is running on the machine, its details are added:
+
+`cycle_id`, `cycle_status`, `cycle_product_type`, `cycle_product_kind`,
+`cycle_order_id`, `cycle_termination_reason`, `cycle_created_at`,
+`cycle_ordered_at`, `cycle_enabled_at`, `cycle_stopped_at`
+
+---
+
+### How it polls
+
+One coordinator update every 60 seconds performs exactly three read-only requests
+for the whole integration, regardless of how many machines you have:
+
+```
+GET /machines?location.id=<location>
+GET /cycles?page=0&size=20&location.id=<location>
+GET /account/wallet
+```
+
+Order history (`/orders`) is available in the client but is not fetched during
+normal polling.
+
+---
+
+### Development
+
+```bash
+pip install -r requirements_test.txt
+cd tests && pytest
+```
+
+The tests run against a local fake API and a local fake Cognito server; no
+credentials and no network access are required.
+
+Read-only API discovery scripts live in [`tools/`](tools/) and are never
+imported by the integration.
 
 ---
 
@@ -77,20 +147,19 @@ icon_color: |
 ---
 
 ### Limitations  
-- Currently supports only monitoring and status updates. Control features (e.g., starting a machine) are not yet implemented.  
-- Compatibility with specific AppWash devices may vary.  
+- Monitoring only. Starting, stopping, reserving machines or any payment operation is not implemented.  
+- The API exposes no remaining-time field. `estimated_end` / `remaining_minutes` are derived from the occupancy window in `availability.additionalInfo` and are an estimate, not a live countdown.  
+- Only the machine types the API reports as `WM` (washer) and `TD` (tumble dryer) get sensors.  
+- Only the availability states `FREE` and `OCCUPIED` have been observed; any other value is passed through unchanged.  
+- Multiple locations are not supported in a single config entry; add one entry per account and select the location in the options.  
 
 ---
 
 ### Contributing  
-We welcome contributions to this project! If you want to contribute:  
 1. Fork the repository.  
-2. Create a feature branch:  
-   ```bash  
-   git checkout -b feature-name  
-   ```  
+2. Create a feature branch.  
 3. Commit your changes and push the branch to your fork.  
-4. Submit a pull request to this repository.  
+4. Submit a pull request.  
 
 ---
 

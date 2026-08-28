@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "AppWash",
+        "description": "Sign in with your AppWash (Miele MOVE) account.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate AppWash",
+        "description": "Your AppWash credentials are no longer valid.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password.",
+      "cannot_connect": "Failed to connect to the AppWash API.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This AppWash account is already configured.",
+      "reauth_successful": "Re-authentication was successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "AppWash options",
+        "description": "Leave the location empty to use the preferred location of your account.",
+        "data": {
+          "location_id": "Location ID"
+        }
+      }
+    }
+  }
+}
