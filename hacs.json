@@ -1,10 +1,5 @@
 {
   "name": "AppWash",
-  "domains": ["sensor"],
-  "documentation": "https://github.com/Rishi8078/Appwash-homeassistant",
-  "issue_tracker": "https://github.com/Rishi8078/Appwash-homeassistant/issues",
-  "dependencies": [],
-  "version": "2.0.0",
-  "render_readme": true,
-  "iot_class": "cloud_polling"
+  "homeassistant": "2024.11.0",
+  "render_readme": true
 }

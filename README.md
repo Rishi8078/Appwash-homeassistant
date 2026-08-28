@@ -35,22 +35,31 @@ with Amazon Cognito login. Version 2.0.0 follows that migration:
 
 ---
 
-### Installation  
+### Installation
 
-1. **Clone the Repository**  
-   ```bash  
-   git clone https://github.com/Rishi8078/Appwash-homeassistant.git  
-   ```  
+#### HACS (custom repository)
 
-2. **Copy Files**  
-   Place the integration folder as `config/custom_components/appwash/` in your Home Assistant configuration directory.  
+1. In Home Assistant, open **HACS > Integrations**.
+2. Open the three-dot menu and choose **Custom repositories**.
+3. Add `https://github.com/Rishi8078/Appwash-homeassistant` with the category **Integration**.
+4. Install **AppWash** and restart Home Assistant.
 
-3. **Restart Home Assistant**  
+#### Manual
 
-4. **Add the Integration**  
-   - Navigate to **Settings > Devices & Services**.  
-   - Click **Add Integration** and search for "AppWash".  
-   - Enter your AppWash account credentials when prompted.  
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Rishi8078/Appwash-homeassistant.git
+   ```
+2. Copy the `custom_components/appwash` folder into your Home Assistant
+   `config/custom_components/` directory, so that
+   `config/custom_components/appwash/manifest.json` exists.
+3. Restart Home Assistant.
+
+#### Add the integration
+
+- Navigate to **Settings > Devices & Services**.
+- Click **Add Integration** and search for "AppWash".
+- Enter your AppWash account credentials when prompted.
 
 ---
 
@@ -130,14 +139,19 @@ normal polling.
 
 ```bash
 pip install -r requirements_test.txt
-cd tests && pytest
+pytest
 ```
 
 The tests run against a local fake API and a local fake Cognito server; no
 credentials and no network access are required.
 
-Read-only API discovery scripts live in [`tools/`](tools/) and are never
-imported by the integration.
+Repository layout:
+
+```
+custom_components/appwash/   the integration (this is what HACS installs)
+tests/                       test suite, no credentials or network needed
+tools/                       read-only API discovery scripts, never imported
+```
 
 ---
 

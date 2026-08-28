@@ -205,12 +205,10 @@ async def test_requests_are_authenticated_with_a_bearer_token(fake_api):
 
 async def test_client_does_not_use_the_legacy_api():
     """The old involtum endpoints must not be used any more."""
-    root = Path(__file__).resolve().parents[1]
-    production = [
-        path
-        for path in root.glob("*.py")
-        if path.parent.name != "tests"
-    ]
+    component = (
+        Path(__file__).resolve().parents[1] / "custom_components" / "appwash"
+    )
+    production = sorted(component.glob("*.py"))
 
     assert production
 
