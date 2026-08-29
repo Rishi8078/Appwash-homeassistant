@@ -1,6 +1,6 @@
 # AppWash Home Assistant Integration
 
-![AppWash Preview](https://github.com/user-attachments/assets/e7d5e131-9e05-4a11-bf4f-9dd2bb01f6b3)
+![AppWash Dashboard](assets/dashboard.png)
 
 Monitor your AppWash (Miele MOVE) laundry room from Home Assistant. Every washing machine and dryer at your location becomes a sensor, so you can see what is free, what is running, and — uniquely — which machine is running *your* wash. Cycle details, estimated finish time, progress and your prepaid balance are all exposed as attributes you can put on a card or trigger automations from.
 
@@ -107,6 +107,8 @@ The balance sensor carries `available_balance`, `total_balance` and `authorized_
 ### 🧺 Machine Status Card
 
 A Mushroom template card that shows the three states differently, with the remaining time when the wash is yours.
+
+![Machine status card](assets/example.png)
 
 <details>
 <summary>View YAML</summary>
