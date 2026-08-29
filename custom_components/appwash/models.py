@@ -373,17 +373,22 @@ class Machine:
         return max(0, int(round(remaining)))
 
     def as_attributes(self, now: datetime | None = None) -> dict[str, Any]:
-        """Return the machine as Home Assistant state attributes."""
+        """Return the machine as Home Assistant state attributes.
+
+        Deliberately narrow: values that duplicate another attribute
+        (``name`` mirrors ``code``), never vary (``price_type``, the fixed
+        two-hour ``cycle_duration_minutes`` window) or can be read off
+        another one (``is_own_cycle`` is ``occupied_by == "you"``, and the
+        ``cycle_*`` block is only present for your own cycles) are left out.
+        """
         end = self.estimated_end
 
         attributes: dict[str, Any] = {
             "machine_code": self.code,
-            "machine_name": self.name,
             "machine_id": self.machine_id,
             "product_group": self.product_group,
             "location_id": self.location_id,
             "availability_status": self.availability_status,
-            "is_own_cycle": self.is_own_cycle,
             "occupied_by": self.occupied_by,
             "status_since": self.status_since,
             "fulfillment_id": self.fulfillment_id,
@@ -392,12 +397,10 @@ class Machine:
             "checked_until": self.checked_until,
             "cycle_price": self.cycle_price,
             "currency": self.currency,
-            "price_type": self.price_type,
             "additional_info": self.additional_info,
             "estimated_end": end.isoformat() if end else None,
             "remaining_minutes": self.remaining_minutes(now),
             "elapsed_minutes": self.elapsed_minutes(now),
-            "cycle_duration_minutes": self.cycle_duration_minutes,
             "progress_percent": self.progress_percent(now),
         }
 

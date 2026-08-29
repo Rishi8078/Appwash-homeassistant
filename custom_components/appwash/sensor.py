@@ -10,7 +10,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_LOCATION_NAME, DOMAIN, STATE_UNKNOWN
+from .const import DOMAIN, STATE_UNKNOWN
 from .coordinator import AppWashDataUpdateCoordinator
 from .models import Machine
 
@@ -41,12 +41,18 @@ async def async_setup_entry(
 
 
 def _device_info(entry: ConfigEntry) -> DeviceInfo:
-    """Return the device all AppWash entities belong to."""
+    """Return the device all AppWash entities belong to.
+
+    The name is kept short on purpose: Home Assistant prefixes it onto every
+    entity's friendly name, and the location title the API returns is long
+    enough to make those unusable in pickers and voice assistants.
+    """
     return DeviceInfo(
         identifiers={(DOMAIN, entry.entry_id)},
-        name=entry.data.get(CONF_LOCATION_NAME) or "AppWash",
+        name="AppWash",
         manufacturer="Miele",
         model="AppWash",
+        configuration_url="https://web.appwash.com",
     )
 
 
@@ -65,7 +71,6 @@ class AppWashMachineSensor(CoordinatorEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._machine_code = machine_code
-        self._location_name = entry.data.get(CONF_LOCATION_NAME) if entry else None
 
         if entry is not None:
             self._attr_device_info = _device_info(entry)
@@ -108,10 +113,7 @@ class AppWashMachineSensor(CoordinatorEntity, SensorEntity):
         if machine is None:
             return {}
 
-        return {
-            **machine.as_attributes(),
-            "location_name": self._location_name,
-        }
+        return machine.as_attributes()
 
 
 class AppWashIndividualWashingMachineSensor(AppWashMachineSensor):

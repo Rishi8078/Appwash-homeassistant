@@ -13,6 +13,18 @@ Monitor AppWash (Miele MOVE) laundry machines from Home Assistant.
 
 ---
 
+### ⚠️ Upgrading from 2.1.0
+
+- The device is now named **AppWash** instead of the location, which shortens
+  every entity's friendly name. Entity IDs are unchanged.
+- Five attributes were removed as duplicates or constants: `machine_name`
+  (same as `machine_code`), `location_name` (already in the friendly name),
+  `price_type` (always `FIX_PRICE`), `cycle_duration_minutes` (always the
+  backend's fixed 120-minute window) and `is_own_cycle` (use
+  `occupied_by == 'you'`).
+
+---
+
 ### ⚠️ Upgrading from 1.x
 
 AppWash migrated to the Miele MOVE API (`https://www.miele-move.com/appwash/api/app/v1`)
@@ -118,18 +130,18 @@ Machine sensors expose these attributes:
 `machine_code`, `machine_name`, `machine_id`, `product_group`, `location_id`,
 | Attribute | Meaning |
 | --- | --- |
-| `machine_code`, `machine_name`, `machine_id` | Identity |
+| `machine_code`, `machine_id` | Identity |
 | `product_group` | `WM` (washer) or `TD` (tumble dryer) |
-| `location_id`, `location_name` | Where the machine is |
+| `location_id` | Where the machine is |
 | `availability_status` | Raw API value: `FREE` / `OCCUPIED` |
-| `is_own_cycle`, `occupied_by` | Whether the occupancy is yours (`you` / `other` / `null`) |
+| `occupied_by` | `you`, `other`, or `null` when free |
 | `status_since` | When the current occupancy started |
 | `fulfillment_id` | Identifies the occupancy; equals your cycle id when it's yours |
 | `checked_at`, `checked_from`, `checked_until` | Freshness window of the availability data |
-| `cycle_price`, `currency`, `price_type` | Price preview for a new cycle |
+| `cycle_price`, `currency` | Price preview for a new cycle |
 | `additional_info` | The backend's occupancy sentence |
 | `estimated_end`, `remaining_minutes` | Derived from the occupancy window |
-| `elapsed_minutes`, `cycle_duration_minutes`, `progress_percent` | Derived progress |
+| `elapsed_minutes`, `progress_percent` | Derived progress |
 
 When one of *your* cycles is running on the machine, its details are added:
 
@@ -141,6 +153,9 @@ When one of *your* cycles is running on the machine, its details are added:
 | `cycle_created_at`, `cycle_ordered_at`, `cycle_enabled_at`, `cycle_stopped_at` | Cycle timeline |
 | `cycle_fulfillment_status` | `FULFILLING` while running, `FULFILLED` once done |
 | `cycle_order_status`, `cycle_paid_amount`, `cycle_description` | What you were charged |
+
+The presence of the `cycle_*` block is itself the "this one is mine" signal, so
+`occupied_by` and `cycle_id` cover what a separate `is_own_cycle` flag would.
 
 The balance sensor carries `available_balance`, `total_balance` and
 `authorized_balance` as attributes.

@@ -123,7 +123,6 @@ def test_machine_attributes_contain_documented_keys():
 
     for key in (
         "machine_code",
-        "machine_name",
         "machine_id",
         "product_group",
         "availability_status",
@@ -328,15 +327,16 @@ def test_active_cycles_by_id_ignores_stopped_cycles():
 def test_ownership_attributes_are_exposed():
     attributes = _attached(OCCUPIED_MACHINE).as_attributes()
 
-    assert attributes["is_own_cycle"] is True
     assert attributes["occupied_by"] == "you"
     assert attributes["availability_status"] == "OCCUPIED"
+    # Ownership is readable without a dedicated flag.
+    assert attributes["cycle_id"] == FULFILLMENT_ID
 
     attributes = _attached(OTHER_OCCUPIED_MACHINE).as_attributes()
 
-    assert attributes["is_own_cycle"] is False
     assert attributes["occupied_by"] == "other"
     assert attributes["fulfillment_id"] == OTHER_FULFILLMENT_ID
+    assert "cycle_id" not in attributes
 
 
 # ----------------------------------------------------------------------
@@ -372,10 +372,26 @@ def test_free_machine_has_no_progress():
     assert machine.progress_percent() is None
 
 
-def test_price_type_is_exposed():
-    assert Machine.from_api(OCCUPIED_MACHINE).as_attributes()["price_type"] == (
-        "FIX_PRICE"
-    )
+def test_pruned_attributes_are_not_exposed():
+    """Duplicates and constants stay off the entity."""
+    attributes = _attached(OCCUPIED_MACHINE).as_attributes()
+
+    for key in (
+        "machine_name",
+        "location_name",
+        "price_type",
+        "cycle_duration_minutes",
+        "is_own_cycle",
+    ):
+        assert key not in attributes
+
+    # The underlying values are still parsed and used internally.
+    machine = Machine.from_api(OCCUPIED_MACHINE)
+
+    assert machine.name == "46083" or machine.name == machine.code
+    assert machine.price_type == "FIX_PRICE"
+    assert machine.cycle_duration_minutes == 120
+    assert machine.is_own_cycle is False
 
 
 def test_parse_order_items():
